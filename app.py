@@ -3,22 +3,10 @@ import subprocess
 import requests
 import re
 import time
-import threading
 from flask import Flask, Response, request, render_template_string, jsonify
 from urllib.parse import unquote
 
 app = Flask(__name__)
-
-# ✅ تحقق من FFmpeg
-def check_ffmpeg():
-    try:
-        result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True, timeout=5)
-        return result.returncode == 0
-    except:
-        return False
-
-FFMPEG_AVAILABLE = check_ffmpeg()
-print(f"[INIT] FFmpeg available: {FFMPEG_AVAILABLE}")
 
 def parse_m3u_content(content):
     channels = []
@@ -53,9 +41,6 @@ HTML_INTERFACE = '''
         .header { text-align: center; padding: 20px; background: #161b22; border-radius: 12px; margin-bottom: 15px; border: 1px solid #30363d; }
         .header h1 { color: #58a6ff; font-size: 24px; }
         .header p { color: #8b949e; font-size: 13px; margin-top: 5px; }
-        .status-badge { display: inline-block; padding: 5px 12px; border-radius: 15px; font-size: 11px; margin-top: 10px; }
-        .status-ok { background: rgba(35,134,54,0.1); border: 1px solid #238636; color: #3fb950; }
-        .status-error { background: rgba(218,54,51,0.1); border: 1px solid #da3633; color: #f85149; }
         .card { background: #161b22; border-radius: 10px; padding: 15px; margin-bottom: 15px; border: 1px solid #30363d; }
         .card-title { color: #58a6ff; font-size: 15px; margin-bottom: 12px; font-weight: 600; }
         .form-group { margin-bottom: 12px; }
@@ -85,8 +70,7 @@ HTML_INTERFACE = '''
 <div class="container">
     <div class="header">
         <h1>📺 IPTV Railway</h1>
-        <p>يعمل على Railway.app</p>
-        <div id="ffmpegStatus" class="status-badge status-ok">✅ FFmpeg يعمل</div>
+        <p>بث مباشر MP4 - يعمل مع 1.9 Mbps</p>
     </div>
 
     <div class="card">
@@ -118,19 +102,19 @@ HTML_INTERFACE = '''
     </div>
 
     <div class="card">
-        <div class="card-title">🎯 الجودة</div>
+        <div class="card-title">🎯 الجودة (Railway أقوى!)</div>
         <div class="preset-grid">
             <div class="preset-btn active" onclick="selectPreset('low')" id="p-low">
-                <h4>📉 خفيف جداً</h4>
-                <p>360p @ 500K</p>
-            </div>
-            <div class="preset-btn" onclick="selectPreset('medium')" id="p-medium">
-                <h4>📊 متوسط</h4>
+                <h4>📉 منخفض</h4>
                 <p>480p @ 800K</p>
             </div>
+            <div class="preset-btn" onclick="selectPreset('medium')" id="p-medium">
+                <h4>📊 متوسطة</h4>
+                <p>720p @ 1500K</p>
+            </div>
             <div class="preset-btn" onclick="selectPreset('high')" id="p-high">
-                <h4>🎬 عالي</h4>
-                <p>720p @ 1200K</p>
+                <h4>🎬 عالية</h4>
+                <p>720p @ 2500K</p>
             </div>
             <div class="preset-btn" onclick="selectPreset('custom')" id="p-custom">
                 <h4>⚙️ مخصص</h4>
@@ -141,14 +125,14 @@ HTML_INTERFACE = '''
             <div class="form-group">
                 <label>الدقة:</label>
                 <select id="customRes">
-                    <option value="426x240">240p</option>
-                    <option value="640x360" selected>360p</option>
-                    <option value="854x480">480p</option>
+                    <option value="640x360">360p</option>
+                    <option value="854x480" selected>480p</option>
+                    <option value="1280x720">720p</option>
                 </select>
             </div>
             <div class="form-group">
                 <label>معدل البت (Kbps):</label>
-                <input type="number" id="customBitrate" value="500" min="300" max="2000" step="100">
+                <input type="number" id="customBitrate" value="800" min="300" max="3000" step="100">
             </div>
         </div>
     </div>
@@ -163,7 +147,7 @@ HTML_INTERFACE = '''
     <div class="video-box" id="videoBox">
         <div class="status-bar">
             <span id="statusText">🔴 جاري التحميل...</span>
-            <span id="qualityText">360p</span>
+            <span id="qualityText">480p</span>
         </div>
         <video id="player" controls playsinline></video>
     </div>
@@ -175,20 +159,6 @@ HTML_INTERFACE = '''
     let allChannels = [];
     let selectedChannelUrl = "";
     let isPlaying = false;
-    
-    // التحقق من FFmpeg
-    fetch('/check_ffmpeg')
-        .then(r => r.json())
-        .then(data => {
-            const badge = document.getElementById('ffmpegStatus');
-            if (data.available) {
-                badge.textContent = '✅ FFmpeg يعمل';
-                badge.className = 'status-badge status-ok';
-            } else {
-                badge.textContent = '❌ FFmpeg غير متاح!';
-                badge.className = 'status-badge status-error';
-            }
-        });
     
     function handleSourceChange() {
         const type = document.getElementById('sourceType').value;
@@ -250,13 +220,13 @@ HTML_INTERFACE = '''
     
     function getSettings() {
         const presets = {
-            'low': { resolution: '640x360', v_bitrate: '500', a_bitrate: '64' },
-            'medium': { resolution: '854x480', v_bitrate: '800', a_bitrate: '96' },
-            'high': { resolution: '1280x720', v_bitrate: '1200', a_bitrate: '128' },
+            'low': { resolution: '854x480', v_bitrate: '800', a_bitrate: '96' },
+            'medium': { resolution: '1280x720', v_bitrate: '1500', a_bitrate: '128' },
+            'high': { resolution: '1280x720', v_bitrate: '2500', a_bitrate: '128' },
             'custom': { 
                 resolution: document.getElementById('customRes').value,
                 v_bitrate: document.getElementById('customBitrate').value,
-                a_bitrate: '64'
+                a_bitrate: '96'
             }
         };
         return presets[currentPreset];
@@ -282,19 +252,6 @@ HTML_INTERFACE = '''
         document.getElementById('statusText').textContent = '🔴 جاري التحميل...';
         
         const player = document.getElementById('player');
-        
-        // اختبار الرابط أولاً
-        try {
-            const testRes = await fetch('/test_url?url=' + encodeURIComponent(url));
-            const testData = await testRes.json();
-            if (!testData.ok) {
-                showError('❌ الرابط لا يعمل: ' + testData.error);
-                return;
-            }
-        } catch(e) {
-            console.log('Test failed:', e);
-        }
-        
         player.src = '/video_feed?' + params.toString();
         player.load();
         player.play().catch(e => {
@@ -304,14 +261,13 @@ HTML_INTERFACE = '''
         
         isPlaying = true;
         
-        // مراقبة التحميل
         player.onloadeddata = () => {
             document.getElementById('statusText').textContent = '🟢 يعمل';
         };
         
         player.onerror = () => {
             document.getElementById('statusText').textContent = '❌ خطأ';
-            showError('❌ فشل تحميل البث');
+            showError('❌ فشل تحميل البث - جرب جودة أقل');
         };
     }
     
@@ -333,31 +289,6 @@ HTML_INTERFACE = '''
 @app.route('/')
 def index():
     return render_template_string(HTML_INTERFACE)
-
-@app.route('/check_ffmpeg')
-def check_ffmpeg_route():
-    """التحقق من FFmpeg"""
-    return jsonify({"available": FFMPEG_AVAILABLE})
-
-@app.route('/test_url')
-def test_url():
-    """اختبار الرابط"""
-    url = request.args.get('url', '')
-    if not url:
-        return jsonify({"ok": False, "error": "No URL"})
-    
-    try:
-        # اختبار الرابط
-        result = subprocess.run(
-            ['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type', '-of', 'json', url],
-            capture_output=True, text=True, timeout=10
-        )
-        return jsonify({
-            "ok": result.returncode == 0,
-            "error": result.stderr if result.returncode != 0 else None
-        })
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
 
 @app.route('/parse_m3u_url')
 def parse_m3u_url():
@@ -388,37 +319,34 @@ def parse_m3u_file():
 @app.route('/video_feed')
 def video_feed():
     target_url = unquote(request.args.get('url', ''))
-    resolution = request.args.get('resolution', '640x360')
-    v_bitrate = request.args.get('v_bitrate', '500')
-    a_bitrate = request.args.get('a_bitrate', '64')
+    resolution = request.args.get('resolution', '854x480')
+    v_bitrate = request.args.get('v_bitrate', '800')
+    a_bitrate = request.args.get('a_bitrate', '96')
     
     if not target_url:
         return "Missing URL", 400
     
-    if not FFMPEG_AVAILABLE:
-        return "FFmpeg not available", 500
-    
-    print(f"[STREAM] Starting: {resolution} @ {v_bitrate}K")
+    print(f"[STREAM] Railway: {resolution} @ {v_bitrate}K")
     
     ffmpeg_cmd = [
         'ffmpeg',
         '-hide_banner',
-        '-loglevel', 'warning',
+        '-loglevel', 'error',
         '-fflags', '+discardcorrupt',
         '-reconnect', '1',
         '-reconnect_streamed', '1',
         '-reconnect_delay_max', '3',
         '-timeout', '5000000',
-        '-thread_queue_size', '256',
+        '-thread_queue_size', '512',
         '-i', target_url,
         '-c:v', 'libx264',
         '-b:v', f'{v_bitrate}k',
         '-maxrate', f'{v_bitrate}k',
         '-bufsize', f'{int(v_bitrate)}k',
         '-s', resolution,
-        '-r', '20',
+        '-r', '25',
         '-preset', 'ultrafast',
-        '-tune', 'fastdecode',
+        '-tune', 'zerolatency',
         '-g', '100',
         '-keyint_min', '100',
         '-sc_threshold', '0',
@@ -426,11 +354,11 @@ def video_feed():
         '-bf', '0',
         '-c:a', 'aac',
         '-b:a', f'{a_bitrate}k',
-        '-ar', '22050',
+        '-ar', '44100',
         '-ac', '1',
         '-async', '1',
         '-vsync', 'cfr',
-        '-max_muxing_queue_size', '256',
+        '-max_muxing_queue_size', '512',
         '-f', 'mp4',
         '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
         '-'
@@ -442,17 +370,10 @@ def video_feed():
         stderr=subprocess.PIPE
     )
     
-    # قراءة stderr للتصحيح
-    def log_stderr():
-        for line in iter(process.stderr.readline, b''):
-            print(f"[FFMPEG] {line.decode('utf-8', errors='ignore').strip()}")
-    
-    threading.Thread(target=log_stderr, daemon=True).start()
-    
     def generate():
         empty_count = 0
-        max_empty = 200
-        chunk_size = 4 * 1024
+        max_empty = 300
+        chunk_size = 8 * 1024
         
         try:
             while True:
@@ -460,9 +381,8 @@ def video_feed():
                 if not data:
                     empty_count += 1
                     if empty_count >= max_empty:
-                        print(f"[STREAM] EOF after {max_empty} empty reads")
                         break
-                    time.sleep(0.2)
+                    time.sleep(0.1)
                     continue
                 
                 empty_count = 0
