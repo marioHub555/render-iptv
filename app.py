@@ -3,7 +3,6 @@ import subprocess
 import requests
 import re
 import time
-import threading
 from flask import Flask, Response, request, render_template_string, jsonify
 from urllib.parse import unquote
 
@@ -35,7 +34,7 @@ HTML_INTERFACE = '''
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📺 IPTV Render</title>
+    <title>📺 IPTV Railway</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
@@ -68,10 +67,10 @@ HTML_INTERFACE = '''
         .header h1 { color: var(--primary); font-size: 24px; }
         .header p { color: var(--text-muted); font-size: 13px; margin-top: 5px; }
         
-        .render-badge {
-            background: rgba(88,166,255,0.1);
-            border: 1px solid var(--primary);
-            color: var(--primary);
+        .railway-badge {
+            background: rgba(137,100,255,0.1);
+            border: 1px solid #8964ff;
+            color: #8964ff;
             padding: 5px 12px;
             border-radius: 15px;
             font-size: 11px;
@@ -163,28 +162,15 @@ HTML_INTERFACE = '''
         }
         
         .hidden { display: none !important; }
-        
-        .sleep-warning {
-            background: rgba(210,153,34,0.1);
-            border: 1px solid var(--warning);
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            font-size: 12px;
-        }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="header">
-        <h1>📺 IPTV Render</h1>
-        <p>يعمل على Render.com - موارد أفضل</p>
-        <span class="render-badge">⚡ Render Free Tier</span>
-    </div>
-    
-    <div class="sleep-warning">
-        ⚠️ <strong>تنبيه:</strong> Render Free يدخل Sleep بعد 15 دقيقة. سأضيف Keep-Alive تلقائي.
+        <h1>📺 IPTV Railway</h1>
+        <p>يعمل على Railway.app - موارد أفضل</p>
+        <span class="railway-badge">🚂 Railway Free Tier</span>
     </div>
 
     <div class="card">
@@ -219,22 +205,22 @@ HTML_INTERFACE = '''
     </div>
 
     <div class="card">
-        <div class="card-title">🎯 الجودة (Render أقوى!)</div>
+        <div class="card-title">🎯 الجودة (Railway أقوى!)</div>
         
         <div class="preset-grid">
             <div class="preset-btn active" onclick="selectPreset('low')" id="p-low">
                 <h4>📉 منخفض</h4>
-                <p>480p @ 800K<br>CPU ~40%</p>
+                <p>480p @ 800K</p>
             </div>
             
             <div class="preset-btn" onclick="selectPreset('medium')" id="p-medium">
                 <h4>📊 متوسطة</h4>
-                <p>720p @ 1500K<br>CPU ~60%</p>
+                <p>720p @ 1500K</p>
             </div>
             
             <div class="preset-btn" onclick="selectPreset('high')" id="p-high">
                 <h4>🎬 عالية</h4>
-                <p>720p @ 2000K<br>CPU ~80%</p>
+                <p>720p @ 2500K</p>
             </div>
             
             <div class="preset-btn" onclick="selectPreset('custom')" id="p-custom">
@@ -279,13 +265,6 @@ HTML_INTERFACE = '''
     let allChannels = [];
     let selectedChannelUrl = "";
     let isPlaying = false;
-    
-    // Keep-Alive لمنع Sleep
-    setInterval(() => {
-        if (isPlaying) {
-            fetch('/ping').catch(() => {});
-        }
-    }, 60000); // كل دقيقة
     
     function handleSourceChange() {
         const type = document.getElementById('sourceType').value;
@@ -349,7 +328,7 @@ HTML_INTERFACE = '''
         const presets = {
             'low': { resolution: '854x480', v_bitrate: '800', a_bitrate: '96' },
             'medium': { resolution: '1280x720', v_bitrate: '1500', a_bitrate: '128' },
-            'high': { resolution: '1280x720', v_bitrate: '2000', a_bitrate: '128' },
+            'high': { resolution: '1280x720', v_bitrate: '2500', a_bitrate: '128' },
             'custom': { 
                 resolution: document.getElementById('customRes').value,
                 v_bitrate: document.getElementById('customBitrate').value,
@@ -398,11 +377,6 @@ HTML_INTERFACE = '''
 def index():
     return render_template_string(HTML_INTERFACE)
 
-@app.route('/ping')
-def ping():
-    """Keep-Alive endpoint"""
-    return jsonify({"status": "alive"})
-
 @app.route('/parse_m3u_url')
 def parse_m3u_url():
     m3u_url = request.args.get('url', '')
@@ -439,7 +413,7 @@ def video_feed():
     if not target_url:
         return "Missing URL", 400
     
-    print(f"[STREAM] Render: {resolution} @ {v_bitrate}K")
+    print(f"[STREAM] Railway: {resolution} @ {v_bitrate}K")
     
     ffmpeg_cmd = [
         'ffmpeg',
@@ -533,5 +507,5 @@ def video_feed():
 
 if __name__ == '__main__':
     import os
-    port = int(os.environ.get("PORT", 10000))
+    port = int(os.environ.get("PORT", 3000))
     app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
